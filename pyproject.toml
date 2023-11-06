@@ -1,0 +1,32 @@
+# pyproject.toml
+
+[build-system]
+requires      = ["setuptools>=61.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "otpplus"
+version = "0.1.0"
+description = "OTPPlus Python SDK"
+readme = "README.md"
+authors = [{ name = "OTPPlus", email = "dev@otp.plus" }]
+license = { file = "LICENSE" }
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+]
+keywords = ["otpplus", "free", "otp", "sms", "totp"]
+dependencies = [
+    "requests"
+]
+requires-python = ">=3.9"
+
+[project.optional-dependencies]
+dev = ["pip-tools", "pytest"]
+
+[project.urls]
+Homepage = "https://otp.plus"
+
+#[project.scripts]
+#otpplus = "cli.__main__:main"
