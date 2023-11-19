@@ -1,3 +1,4 @@
+import uuid
 import requests
 
 
@@ -5,57 +6,100 @@ class OTPPlus:
     """
     OTPPlus Class
     """
-    def __init__(self, access_key, provider=None):
+    _HOST = {
+        'uat': 'https://stage.gateway.otp.plus',
+        'prod': 'https://gateway.otp.plus'
+    }
+    _PASSWD = {
+        'uat': 'oD6bbeihkS7f0ule',
+        'prod': 'HPGm5YzByjmC2JJP'
+    }
+
+    def __init__(self, access_key: str, namespace: str='prod'):
         """Initializes the OTPPlus Client Object
 
         :param str access_key: Registered Access Key (see otp.plus)
-        :param str provider: Default OTP Provider. Default: None
+        :param str namespace: Namespace - prod or uat. Default: prod
 
         :returns: Object of OTPPlus Class
         :rtype: :obj:`OTPPlus`
         """
-        self.access_key = access_key
-        self.provider = provider
+        self._session = requests.Session()
+        self._host = OTPPlus._HOST[namespace]
+        self._access_key = access_key
+        self._namespace = namespace
+        self._session.auth = (namespace, OTPPlus._PASSWD[namespace])
+        self._session.headers.update({'X-API-Key': access_key, 'X-APP-ID': namespace})
 
-    @classmethod
-    def get_providers():
+    def get_providers(self):
         """Returns list of providers
 
-        :returns: List of providers available or None
-        :rtype: :obj:`List[str]`
+        :returns: List of providers available or None and error message (if any) or None
+        :rtype: :obj:`(List[str], str)`
         """
-        ...
+        resp = self._session.get(self._host + '/api/providers')
+        if resp.status_code == 200:
+            return resp.json()['data'], None
+        return None, resp.json().get('message', resp.text)
 
-    def send_otp(self, to, provider=None):
+    def send_otp(self, to: str, otp: int=None, provider: str=None):
         """Generates and sends an OTP
 
         :param str to: Recipient phone number or email
+        :param int otp: OTP to be sent (optional). Will be auto-generated if not specified.
         :param str provider: Provider name. Default: Auto selected based on 'to'
 
         :returns: set of otp_id (success) or None and error message (if any) or None
         :rtype: :obj:`(str, str)`
         """
+        _provider = 'sms'
+        if provider is not None:
+            _provider = provider
+        elif '@' in to:
+            _provider = 'email'
 
-    def verify_otp(self, otp_id, otp):
-        """Generates and sends an OTP
+        otp_id = str(uuid.uuid4())
+        payload = {'to': to, 'provider': _provider, 'otp': otp}
+        resp = self._session.put(self._host + '/api/otp/' + otp_id, data=payload)
+        if resp.status_code == 200:
+            return resp.json()['data']['id'], None
+        return None, resp.json().get('message', resp.text)
+
+
+    def verify_otp(self, otp_id, otp, skip_delete: bool=True):
+        """Verifies OTP provided by user with sent one
 
         :param str otp_id: otp_id returned during send_otp() call
-        :param str otp: OTP provided to verify
+        :param int otp: OTP provided to verify
+        :param bool skip_delete: Set True (default) to keep OTP verification status till TTL
 
         :returns: set of verify status and error message (if any) or None
         :rtype: :obj:`(bool, str)`
         """
-        ...
+        payload = {'otp': otp, 'skip_delete': skip_delete}
+        resp = self._session.post(self._host + '/api/otp/' + otp_id, data=payload)
+        if resp.status_code == 200:
+            return True, None
+        return False, resp.json().get('message', resp.text)
+    
+    def check_otp(self, otp_id, delete: bool=False):
+        """Checks OTP Status
 
-    def register_totp(self, userid):
-        """Enrolls a client with TOTP Authenticator App
+        :param str otp_id: otp_id returned during send_otp() call
+        :param int otp: OTP provided to verify
 
-        :param str userid: Unique user id associated with the client
-
-        :returns: Registration page URL (success) or None
-        :rtype: :obj:`str`
+        :returns: True and None for verified, False and Message otherwise
+        :rtype: :obj:`(bool, str)`
         """
-        ...
+        resp = None
+        if delete:
+            resp = self._session.delete(self._host + '/api/otp/' + otp_id + '/status')
+        else:
+            resp = self._session.post(self._host + '/api/otp/' + otp_id + '/status')
+        if resp.status_code == 200:
+            return True, None
+        return False, resp.json().get('message', resp.text)
+
 
     def verify_totp(self, userid, totp):
         """Verifies TOTP provided by client from Authenticator App
@@ -66,4 +110,7 @@ class OTPPlus:
         :returns: set of verify status and error message (if any) or None
         :rtype: :obj:`(bool, str)`
         """
-        ...
+        resp = self._session.get(self._host + '/api/totp/' + userid + '/verify')
+        if resp.status_code == 200:
+            return True, None
+        return False, resp.json().get('message', resp.text)
